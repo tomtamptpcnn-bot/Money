@@ -1220,6 +1220,9 @@ function DebtsView({ data, setEditor, remove, reload, notify }: { data: DataShap
   const [payingId, setPayingId] = useState("");
   const [payment, setPayment] = useState({ mode: "next" as DebtPaymentMode, wallet: data.wallets[0]?.name ?? "", amount: "", date: todayInput(), note: "" });
   const [message, setMessage] = useState("");
+  const ownerSummaries = useMemo(() => summarizeDebtsByOwner(data.debts), [data.debts]);
+  const debtTotal = ownerSummaries.reduce((sum, owner) => sum + owner.totalAmount, 0);
+  const debtRemaining = ownerSummaries.reduce((sum, owner) => sum + owner.remainingAmount, 0);
 
   async function pay(debt: Debt) {
     setMessage("");
@@ -1251,6 +1254,34 @@ function DebtsView({ data, setEditor, remove, reload, notify }: { data: DataShap
         </div>
         <Button onClick={() => setEditor({ resource: "debts" })}><Plus className="h-4 w-4" />เพิ่มหนี้</Button>
       </div>
+      {ownerSummaries.length ? (
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <SummaryMetric label="ยอดหนี้ทั้งหมด" value={money(debtTotal)} tone="expense" />
+            <SummaryMetric label="ยอดคงเหลือทั้งหมด" value={money(debtRemaining)} tone={debtRemaining <= 0 ? "income" : "expense"} />
+            <SummaryMetric label="จ่ายแล้วทั้งหมด" value={money(Math.max(0, debtTotal - debtRemaining))} />
+            <SummaryMetric label="เจ้าของหนี้" value={`${ownerSummaries.length} คน`} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {ownerSummaries.map((owner) => (
+              <Card key={owner.owner} className="border-primary/20 bg-primary/5">
+                <CardContent className="grid gap-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <NameRow item={{ name: owner.owner, icon: "UsersRound", color: "#a7c7e7" }} extra={`${owner.count} รายการ • คงเหลือ ${money(owner.remainingAmount)}`} />
+                    <p className={cn("shrink-0 text-sm font-black", owner.remainingAmount > 0 ? "text-destructive" : "text-primary")}>{money(owner.remainingAmount)}</p>
+                  </div>
+                  <Progress value={owner.totalAmount ? (owner.paidAmount / owner.totalAmount) * 100 : 0} />
+                  <div className="grid grid-cols-3 gap-2">
+                    <SummaryMetric label="ยอดหนี้" value={money(owner.totalAmount)} />
+                    <SummaryMetric label="จ่ายแล้ว" value={money(owner.paidAmount)} />
+                    <SummaryMetric label="ต่องวด" value={money(owner.monthlyPayment)} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-4">
         {data.debts.length ? data.debts.map((debt) => {
           const schedule = buildDebtSchedule(debt);
@@ -1298,6 +1329,26 @@ function DebtsView({ data, setEditor, remove, reload, notify }: { data: DataShap
       </div>
     </div>
   );
+}
+
+function summarizeDebtsByOwner(debts: Debt[]) {
+  const groups = new Map<string, { owner: string; count: number; totalAmount: number; paidAmount: number; remainingAmount: number; monthlyPayment: number }>();
+
+  for (const debt of debts) {
+    const owner = (debt.owner || "ตัวเอง").trim() || "ตัวเอง";
+    const totalAmount = Number(debt.totalAmount || 0);
+    const paidAmount = Math.min(totalAmount, Number(debt.paidAmount || 0));
+    const remainingAmount = Math.max(0, totalAmount - paidAmount);
+    const current = groups.get(owner) ?? { owner, count: 0, totalAmount: 0, paidAmount: 0, remainingAmount: 0, monthlyPayment: 0 };
+    current.count += 1;
+    current.totalAmount += totalAmount;
+    current.paidAmount += paidAmount;
+    current.remainingAmount += remainingAmount;
+    current.monthlyPayment += debt.status === "paid" ? 0 : Number(debt.monthlyPayment || 0);
+    groups.set(owner, current);
+  }
+
+  return Array.from(groups.values()).sort((a, b) => b.remainingAmount - a.remainingAmount || a.owner.localeCompare(b.owner));
 }
 
 function DebtInstallmentBadges({ schedule }: { schedule: ReturnType<typeof buildDebtSchedule> }) {
