@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readResource, updateResource } from "@/lib/firebase-store";
+import { readResource, updateResourceBatch } from "@/lib/firebase-store";
 import type { Asset } from "@/lib/types";
 
 type ThaiGoldApiResponse = {
@@ -223,19 +223,17 @@ export async function POST(request: NextRequest) {
     if (!targets.length) throw new Error("ไม่พบทองที่ตั้งค่าให้ใช้ราคาทองอัตโนมัติ");
 
     const price = await fetchGoldPrice();
-    const updated = [];
-
-    for (const asset of targets) {
-      const next = {
+    const updated = await updateResourceBatch("assets", targets.map((asset) => ({
+      id: asset.id,
+      input: {
         ...asset,
         symbol: asset.symbol || "THAI_GOLD_BAR",
         priceSource: "goldapi",
         priceCurrency: "THB",
         currentPrice: price.price,
         lastPriceUpdatedAt: price.updatedAt
-      };
-      updated.push(await updateResource("assets", asset.id, next));
-    }
+      }
+    })));
 
     return NextResponse.json({ updated: updated.length, assets: updated, provider: price.provider, routeVersion });
   } catch (error) {

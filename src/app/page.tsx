@@ -250,10 +250,11 @@ export default function HomePage() {
     setLoading(true);
     setError("");
     try {
-      const [dataRes, summaryRes] = await Promise.all([fetch("/api/data"), fetch("/api/summary")]);
-      if (!dataRes.ok || !summaryRes.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
-      setData(await dataRes.json());
-      setSummary(await summaryRes.json());
+      const res = await fetch("/api/data?summary=1");
+      if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+      const body = await res.json();
+      setData(body.data);
+      setSummary(body.summary);
     } catch (err) {
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     } finally {

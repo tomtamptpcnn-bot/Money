@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   getFirestore,
   setDoc,
@@ -20,6 +21,7 @@ const now = () => new Date().toISOString();
 const id = () => crypto.randomUUID();
 const defaultAdminUsername = "tomtam";
 const defaultAdminPassword = "TomTam22";
+const seedChecked = new Set<Resource>();
 
 const configs: {
   transactions: Config<Transaction>;
@@ -130,16 +132,29 @@ function seedRows(resource: Resource) {
 }
 
 async function ensureSeed(resource: Resource) {
+  if (seedChecked.has(resource)) return;
+  if (!configs[resource].seed.length) {
+    seedChecked.add(resource);
+    return;
+  }
+
   const snapshot = await getDocs(collectionRef(resource));
   if (snapshot.empty && configs[resource].seed.length) {
     await writeRows(resource, seedRows(resource));
+    seedChecked.add(resource);
     return;
   }
-  if (resource !== "categories" || !configs[resource].seed.length) return;
+  if (resource !== "categories") {
+    seedChecked.add(resource);
+    return;
+  }
 
   const existing = snapshot.docs.map((item) => item.data() as Partial<Category>);
   const missing = configs.categories.seed.filter((seed) => !existing.some((item) => item.name === seed.name && item.type === seed.type));
-  if (!missing.length) return;
+  if (!missing.length) {
+    seedChecked.add(resource);
+    return;
+  }
 
   const stamp = now();
   const batch = writeBatch(db());
@@ -148,6 +163,7 @@ async function ensureSeed(resource: Resource) {
     batch.set(doc(collectionRef(resource), itemId), { id: itemId, ...item, createdAt: stamp, updatedAt: stamp });
   }
   await batch.commit();
+  seedChecked.add(resource);
 }
 
 async function writeRows<T extends Record<string, unknown>>(resource: Resource, rows: T[]) {
@@ -193,13 +209,22 @@ export async function readResource<T extends Record<string, unknown>>(resource: 
 }
 
 export async function listData(): Promise<DataShape> {
+  const [transactions, wallets, categories, assets, debts, goals] = await Promise.all([
+    readResource<Transaction>("transactions"),
+    readResource<Wallet>("wallets"),
+    readResource<Category>("categories"),
+    readResource<Asset>("assets"),
+    readResource<Debt>("debts"),
+    readResource<Goal>("goals")
+  ]);
+
   return {
-    transactions: (await readResource<Transaction>("transactions")).sort((a, b) => String(b.date).localeCompare(String(a.date))),
-    wallets: await readResource<Wallet>("wallets"),
-    categories: await readResource<Category>("categories"),
-    assets: await readResource<Asset>("assets"),
-    debts: await readResource<Debt>("debts"),
-    goals: await readResource<Goal>("goals")
+    transactions: transactions.sort((a, b) => String(b.date).localeCompare(String(a.date))),
+    wallets,
+    categories,
+    assets,
+    debts,
+    goals
   };
 }
 
@@ -212,9 +237,9 @@ export async function addResource<T extends Record<string, unknown>>(resource: R
 }
 
 export async function updateResource<T extends Record<string, unknown>>(resource: Resource, itemId: string, input: T) {
-  const rows = await readResource<Record<string, unknown>>(resource);
-  const previous = rows.find((row) => row.id === itemId);
-  if (!previous) throw new Error("ไม่พบรายการ");
+  const snapshot = await getDoc(doc(collectionRef(resource), itemId));
+  if (!snapshot.exists()) throw new Error("ไม่พบรายการ");
+  const previous = { id: snapshot.id, ...snapshot.data() } as Record<string, unknown>;
   const next = normalizeRow({ ...previous, ...input, id: itemId, createdAt: previous.createdAt, updatedAt: now() });
   await setDoc(doc(collectionRef(resource), itemId), next);
   if (resource === "transactions") {
@@ -224,10 +249,49 @@ export async function updateResource<T extends Record<string, unknown>>(resource
   return next;
 }
 
-export async function deleteResource(resource: Resource, itemId: string) {
+export async function updateResourceBatch<T extends Record<string, unknown>>(resource: Resource, updates: { id: string; input: T }[]) {
+  if (!updates.length) return [];
+
   const rows = await readResource<Record<string, unknown>>(resource);
-  const item = rows.find((row) => row.id === itemId);
-  if (!item) throw new Error("ไม่พบรายการ");
+  const stamp = now();
+  const nextRows = updates.map(({ id: itemId, input }) => {
+    const previous = rows.find((row) => row.id === itemId);
+    if (!previous) throw new Error("ไม่พบรายการ");
+    return {
+      previous,
+      next: normalizeRow({ ...previous, ...input, id: itemId, createdAt: previous.createdAt, updatedAt: stamp })
+    };
+  });
+
+  let batch = writeBatch(db());
+  let operations = 0;
+
+  for (const { next } of nextRows) {
+    batch.set(doc(collectionRef(resource), String(next.id)), next);
+    operations += 1;
+    if (operations === 450) {
+      await batch.commit();
+      batch = writeBatch(db());
+      operations = 0;
+    }
+  }
+
+  if (operations) await batch.commit();
+
+  if (resource === "transactions") {
+    for (const { previous, next } of nextRows) {
+      await applyTransactionDelta(previous as unknown as Transaction, -1);
+      await applyTransactionDelta(next as unknown as Transaction, 1);
+    }
+  }
+
+  return nextRows.map(({ next }) => next);
+}
+
+export async function deleteResource(resource: Resource, itemId: string) {
+  const snapshot = await getDoc(doc(collectionRef(resource), itemId));
+  if (!snapshot.exists()) throw new Error("ไม่พบรายการ");
+  const item = { id: snapshot.id, ...snapshot.data() } as Record<string, unknown>;
   await deleteDoc(doc(collectionRef(resource), itemId));
   if (resource === "transactions") await applyTransactionDelta(item as unknown as Transaction, -1);
   return item;
@@ -309,8 +373,7 @@ async function applyTransactionDelta(transaction: Transaction, direction: 1 | -1
   await setDoc(doc(collectionRef("wallets"), wallet.id), normalizeRow(next));
 }
 
-export async function buildSummary() {
-  const data = await listData();
+export function buildSummaryFromData(data: DataShape) {
   const thisMonth = monthKey(new Date());
   const monthly = new Map<string, { month: string; income: number; expense: number }>();
   const expenseCategories = new Map<string, number>();
@@ -355,9 +418,13 @@ export async function buildSummary() {
   };
 }
 
+export async function buildSummary() {
+  return buildSummaryFromData(await listData());
+}
+
 export async function exportDataBackup() {
   const data = await listData();
-  const summary = await buildSummary();
+  const summary = buildSummaryFromData(data);
   return {
     exportedAt: now(),
     source: "firebase",
