@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 42 45% 97%;
+  --foreground: 220 28% 18%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 28% 18%;
+  --primary: 166 53% 37%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 351 82% 94%;
+  --secondary-foreground: 345 50% 28%;
+  --muted: 44 31% 92%;
+  --muted-foreground: 220 12% 44%;
+  --accent: 214 75% 93%;
+  --accent-foreground: 216 48% 27%;
+  --destructive: 356 71% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 38 22% 86%;
+  --input: 38 22% 86%;
+  --ring: 166 53% 37%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 222 23% 10%;
+  --foreground: 42 45% 96%;
+  --card: 222 22% 14%;
+  --card-foreground: 42 45% 96%;
+  --primary: 166 48% 47%;
+  --primary-foreground: 220 28% 13%;
+  --secondary: 338 27% 23%;
+  --secondary-foreground: 351 82% 94%;
+  --muted: 222 16% 20%;
+  --muted-foreground: 218 13% 70%;
+  --accent: 214 24% 24%;
+  --accent-foreground: 214 75% 91%;
+  --destructive: 356 71% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 222 16% 24%;
+  --input: 222 16% 24%;
+  --ring: 166 48% 47%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(249, 196, 203, 0.45), transparent 30rem),
+    radial-gradient(circle at bottom right, rgba(146, 212, 199, 0.35), transparent 28rem),
+    hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
