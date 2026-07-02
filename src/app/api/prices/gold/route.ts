@@ -30,10 +30,18 @@ type GoldTradersPriceRow = {
   oM965_SellPrice?: number;
 };
 
+type GoldPriceResult = {
+  price: number;
+  updatedAt: string;
+  provider: string;
+};
+
 export const dynamic = "force-dynamic";
+const routeVersion = "gold-price-v3-classic-fallback";
 
 const defaultThaiGoldApiUrl = "https://api.chnwt.dev/thai-gold-api/latest";
 const goldTradersDetailsUrl = "https://www.goldtraders.or.th/api/GoldPrices/Details?readjson=false";
+const classicGoldTradersUrl = "https://classic.goldtraders.or.th/Default.aspx";
 const goldTradersHeaders = {
   Accept: "application/json,text/plain,*/*",
   Referer: "https://www.goldtraders.or.th/",
@@ -58,6 +66,15 @@ function parsePrice(value: unknown) {
   if (typeof value === "number") return value;
   if (typeof value !== "string") return 0;
   return Number(value.replace(/,/g, "").trim());
+}
+
+function textFromHtml(value: string) {
+  return value.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function textInElement(html: string, id: string) {
+  const match = html.match(new RegExp(`<span[^>]+id=["']${id}["'][^>]*>([\\s\\S]*?)</span>`, "i"));
+  return match ? textFromHtml(match[1]) : "";
 }
 
 async function readJson<T>(response: Response, providerName: string): Promise<T> {
@@ -87,7 +104,8 @@ async function fetchThaiGoldPrice() {
 
   return {
     price: sellPrice,
-    updatedAt: updateDate ? `${updateDate}${updateTime ? ` ${updateTime}` : ""}` : new Date().toISOString()
+    updatedAt: updateDate ? `${updateDate}${updateTime ? ` ${updateTime}` : ""}` : new Date().toISOString(),
+    provider: providerUrl
   };
 }
 
@@ -107,22 +125,46 @@ async function fetchGoldTradersPrice() {
 
   return {
     price,
-    updatedAt: latest?.asTime || new Date().toISOString()
+    updatedAt: latest?.asTime || new Date().toISOString(),
+    provider: "สมาคมค้าทองคำ JSON API"
   };
 }
 
-async function fetchGoldPrice() {
+async function fetchClassicGoldTradersPrice() {
+  const response = await fetch(classicGoldTradersUrl, {
+    headers: goldTradersHeaders,
+    cache: "no-store"
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error("ดึงราคาทองจากหน้า classic ของสมาคมค้าทองคำไม่สำเร็จ");
+
+  const price = parsePrice(textInElement(body, "DetailPlace_uc_goldprices1_lblBLSell"));
+  if (!price) throw new Error("ไม่พบราคาทองคำแท่ง 96.5% ขายออกจากหน้า classic ของสมาคมค้าทองคำ");
+
+  return {
+    price,
+    updatedAt: textInElement(body, "DetailPlace_uc_goldprices1_lblAsTime") || new Date().toISOString(),
+    provider: "สมาคมค้าทองคำ classic"
+  };
+}
+
+async function fetchGoldPrice(): Promise<GoldPriceResult> {
   if (hasCustomGoldApiUrl()) return fetchThaiGoldPrice();
 
   try {
     return await fetchGoldTradersPrice();
   } catch (primaryError) {
     try {
-      return await fetchThaiGoldPrice();
+      return await fetchClassicGoldTradersPrice();
     } catch (fallbackError) {
-      const primaryMessage = primaryError instanceof Error ? primaryError.message : "สมาคมค้าทองคำล้มเหลว";
-      const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "provider สำรองล้มเหลว";
-      throw new Error(`${primaryMessage}; ${fallbackMessage}`);
+      try {
+        return await fetchThaiGoldPrice();
+      } catch (lastError) {
+        const primaryMessage = primaryError instanceof Error ? primaryError.message : "สมาคมค้าทองคำล้มเหลว";
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "หน้า classic ของสมาคมค้าทองคำล้มเหลว";
+        const lastMessage = lastError instanceof Error ? lastError.message : "provider สำรองล้มเหลว";
+        throw new Error(`${primaryMessage}; ${fallbackMessage}; ${lastMessage}`);
+      }
     }
   }
 }
@@ -156,8 +198,8 @@ export async function POST(request: NextRequest) {
       updated.push(await updateResource("assets", asset.id, next));
     }
 
-    return NextResponse.json({ updated: updated.length, assets: updated });
+    return NextResponse.json({ updated: updated.length, assets: updated, provider: price.provider, routeVersion });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "อัปเดตราคาทองไม่สำเร็จ" }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "อัปเดตราคาทองไม่สำเร็จ", routeVersion }, { status: 400 });
   }
 }
