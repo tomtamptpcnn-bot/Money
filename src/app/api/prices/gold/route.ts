@@ -90,9 +90,9 @@ async function fetchGoldTradersPrice() {
 
 async function fetchGoldPrice() {
   try {
-    return await fetchGoldTradersPrice();
+    return await fetchThaiGoldPrice();
   } catch {
-    return fetchThaiGoldPrice();
+    return fetchGoldTradersPrice();
   }
 }
 
