@@ -43,22 +43,39 @@ function getThaiGoldApiUrl() {
   return defaultThaiGoldApiUrl;
 }
 
+function hasCustomGoldApiUrl() {
+  const explicitUrl = process.env.GOLD_PRICE_API_URL?.trim();
+  const legacyValue = process.env.GOLDAPI_KEY?.trim();
+  return Boolean((explicitUrl && explicitUrl !== defaultThaiGoldApiUrl) || (legacyValue?.startsWith("http") && legacyValue !== defaultThaiGoldApiUrl));
+}
+
 function parsePrice(value: unknown) {
   if (typeof value === "number") return value;
   if (typeof value !== "string") return 0;
   return Number(value.replace(/,/g, "").trim());
 }
 
+async function readJson<T>(response: Response, providerName: string): Promise<T> {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const preview = text.replace(/\s+/g, " ").slice(0, 80);
+    throw new Error(`${providerName} ไม่ได้ส่ง JSON กลับมา${preview ? `: ${preview}` : ""}`);
+  }
+}
+
 async function fetchThaiGoldPrice() {
-  const response = await fetch(getThaiGoldApiUrl(), {
+  const providerUrl = getThaiGoldApiUrl();
+  const response = await fetch(providerUrl, {
     cache: "no-store"
   });
-  const body = await response.json() as ThaiGoldApiResponse;
-  if (!response.ok) throw new Error(body.error || body.message || "ดึงราคาทองไม่สำเร็จ");
+  const body = await readJson<ThaiGoldApiResponse>(response, providerUrl);
+  if (!response.ok) throw new Error(body.error || body.message || `ดึงราคาทองไม่สำเร็จจาก ${providerUrl}`);
 
   const price = body.response?.price;
   const sellPrice = parsePrice(price?.gold_bar?.sell) || parsePrice(price?.gold_bar?.buy) || parsePrice(price?.gold?.sell) || parsePrice(price?.gold?.buy);
-  if (!sellPrice) throw new Error("ไม่พบราคาทองจากผู้ให้บริการ");
+  if (!sellPrice) throw new Error(`ไม่พบราคาทองจาก ${providerUrl}`);
 
   const updateDate = body.response?.update_date?.trim();
   const updateTime = body.response?.update_time?.trim();
@@ -73,7 +90,7 @@ async function fetchGoldTradersPrice() {
   const response = await fetch(goldTradersDetailsUrl, {
     cache: "no-store"
   });
-  const body = await response.json() as GoldTradersPriceRow[];
+  const body = await readJson<GoldTradersPriceRow[]>(response, "สมาคมค้าทองคำ");
   if (!response.ok) throw new Error("ดึงราคาทองจากสมาคมค้าทองคำไม่สำเร็จ");
 
   const latest = Array.isArray(body)
@@ -89,10 +106,18 @@ async function fetchGoldTradersPrice() {
 }
 
 async function fetchGoldPrice() {
+  if (hasCustomGoldApiUrl()) return fetchThaiGoldPrice();
+
   try {
     return await fetchThaiGoldPrice();
-  } catch {
-    return fetchGoldTradersPrice();
+  } catch (primaryError) {
+    try {
+      return await fetchGoldTradersPrice();
+    } catch (fallbackError) {
+      const primaryMessage = primaryError instanceof Error ? primaryError.message : "provider หลักล้มเหลว";
+      const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "provider สำรองล้มเหลว";
+      throw new Error(`${primaryMessage}; ${fallbackMessage}`);
+    }
   }
 }
 

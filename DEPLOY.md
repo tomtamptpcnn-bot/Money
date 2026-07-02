@@ -14,7 +14,7 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
 NEXT_PUBLIC_FIREBASE_APP_ID=...
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=...
-GOLD_PRICE_API_URL=https://api.chnwt.dev/thai-gold-api/latest
+GOLD_PRICE_API_URL=https://api.chnwt.dev/thai-gold-api/latest # ไม่บังคับ ใช้เมื่ออยากกำหนด provider เอง
 APP_SESSION_SECRET=ใส่รหัสสุ่มยาวๆ-ห้ามใช้ค่าตัวอย่าง
 ```
 
@@ -45,4 +45,3 @@ password: TomTam22
 ## 4. หลัง Deploy
 
 เปิด URL จาก Vercel แล้ว login ด้วย user เริ่มต้น จากนั้นเข้า Firebase Console > Firestore จะเห็น collection `users` ถูกสร้างเมื่อ login ครั้งแรก
-

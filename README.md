@@ -17,7 +17,7 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
 NEXT_PUBLIC_FIREBASE_APP_ID=...
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=...
-GOLD_PRICE_API_URL=https://api.chnwt.dev/thai-gold-api/latest
+GOLD_PRICE_API_URL=https://api.chnwt.dev/thai-gold-api/latest # ไม่บังคับ ใช้เมื่ออยากกำหนด provider เอง
 ```
 
 แอพจะเก็บข้อมูลใน Firestore collections เหล่านี้: `transactions`, `wallets`, `categories`, `assets`, `debts`, และ `goals`
@@ -28,12 +28,11 @@ GOLD_PRICE_API_URL=https://api.chnwt.dev/thai-gold-api/latest
 
 ปุ่ม `อัปเดตราคาทอง` ในหน้า `ทรัพย์สิน` ใช้ API ราคาทองไทยผ่าน server route `/api/prices/gold`
 
-1. ใส่ค่า `GOLD_PRICE_API_URL=https://api.chnwt.dev/thai-gold-api/latest` ใน `.env.local`
-3. เพิ่มทรัพย์สินประเภท `ทอง`
-4. ตั้ง `แหล่งราคา` เป็น `ราคาทองไทย`
-5. กด `อัปเดตราคาทอง`
+1. เพิ่มทรัพย์สินประเภท `ทอง`
+2. ตั้ง `แหล่งราคา` เป็น `ราคาทองไทย`
+3. กด `อัปเดตราคาทอง`
 
-ราคาที่ดึงคือราคาขายทองคำแท่งจาก API ราคาทองไทย โดยนับเป็นราคาต่อ 1 บาททองคำ
+ราคาที่ดึงคือราคาขายทองคำแท่ง โดยนับเป็นราคาต่อ 1 บาททองคำ แอพจะลอง API ราคาทองไทยก่อน แล้ว fallback ไป API ของสมาคมค้าทองคำถ้า provider หลักใช้ไม่ได้ หากต้องการใช้ endpoint เฉพาะให้ตั้ง `GOLD_PRICE_API_URL` ใน `.env.local`
 
 ## รันแอพ
 
