@@ -34,6 +34,11 @@ export const dynamic = "force-dynamic";
 
 const defaultThaiGoldApiUrl = "https://api.chnwt.dev/thai-gold-api/latest";
 const goldTradersDetailsUrl = "https://www.goldtraders.or.th/api/GoldPrices/Details?readjson=false";
+const goldTradersHeaders = {
+  Accept: "application/json,text/plain,*/*",
+  Referer: "https://www.goldtraders.or.th/",
+  "User-Agent": "Mozilla/5.0"
+};
 
 function getThaiGoldApiUrl() {
   const explicitUrl = process.env.GOLD_PRICE_API_URL?.trim();
@@ -88,6 +93,7 @@ async function fetchThaiGoldPrice() {
 
 async function fetchGoldTradersPrice() {
   const response = await fetch(goldTradersDetailsUrl, {
+    headers: goldTradersHeaders,
     cache: "no-store"
   });
   const body = await readJson<GoldTradersPriceRow[]>(response, "สมาคมค้าทองคำ");
@@ -109,12 +115,12 @@ async function fetchGoldPrice() {
   if (hasCustomGoldApiUrl()) return fetchThaiGoldPrice();
 
   try {
-    return await fetchThaiGoldPrice();
+    return await fetchGoldTradersPrice();
   } catch (primaryError) {
     try {
-      return await fetchGoldTradersPrice();
+      return await fetchThaiGoldPrice();
     } catch (fallbackError) {
-      const primaryMessage = primaryError instanceof Error ? primaryError.message : "provider หลักล้มเหลว";
+      const primaryMessage = primaryError instanceof Error ? primaryError.message : "สมาคมค้าทองคำล้มเหลว";
       const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "provider สำรองล้มเหลว";
       throw new Error(`${primaryMessage}; ${fallbackMessage}`);
     }
