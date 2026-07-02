@@ -37,7 +37,8 @@ type GoldPriceResult = {
 };
 
 export const dynamic = "force-dynamic";
-const routeVersion = "gold-price-v4-alt-html-fallback";
+const routeVersion = "gold-price-v5-fast-primary";
+const priceFetchTimeoutMs = 2500;
 
 const defaultThaiGoldApiUrl = "https://api.chnwt.dev/thai-gold-api/latest";
 const goldTradersDetailsUrl = "https://www.goldtraders.or.th/api/GoldPrices/Details?readjson=false";
@@ -78,6 +79,10 @@ function textInElement(html: string, id: string) {
   return match ? textFromHtml(match[1]) : "";
 }
 
+function timeoutSignal() {
+  return AbortSignal.timeout(priceFetchTimeoutMs);
+}
+
 async function readJson<T>(response: Response, providerName: string): Promise<T> {
   const text = await response.text();
   try {
@@ -91,6 +96,7 @@ async function readJson<T>(response: Response, providerName: string): Promise<T>
 async function fetchThaiGoldPrice() {
   const providerUrl = getThaiGoldApiUrl();
   const response = await fetch(providerUrl, {
+    signal: timeoutSignal(),
     cache: "no-store"
   });
   const body = await readJson<ThaiGoldApiResponse>(response, providerUrl);
@@ -113,6 +119,7 @@ async function fetchThaiGoldPrice() {
 async function fetchGoldTradersPrice() {
   const response = await fetch(goldTradersDetailsUrl, {
     headers: goldTradersHeaders,
+    signal: timeoutSignal(),
     cache: "no-store"
   });
   const body = await readJson<GoldTradersPriceRow[]>(response, "สมาคมค้าทองคำ");
@@ -134,6 +141,7 @@ async function fetchGoldTradersPrice() {
 async function fetchClassicGoldTradersPrice() {
   const response = await fetch(classicGoldTradersUrl, {
     headers: goldTradersHeaders,
+    signal: timeoutSignal(),
     cache: "no-store"
   });
   const body = await response.text();
@@ -155,6 +163,7 @@ async function fetchThaiGoldTodayPrice() {
       Accept: "text/html,application/xhtml+xml",
       "User-Agent": "Mozilla/5.0"
     },
+    signal: timeoutSignal(),
     cache: "no-store"
   });
   const body = (await response.text()).replace(/\0/g, "");
@@ -177,20 +186,20 @@ async function fetchGoldPrice(): Promise<GoldPriceResult> {
   if (hasCustomGoldApiUrl()) return fetchThaiGoldPrice();
 
   try {
-    return await fetchGoldTradersPrice();
+    return await fetchThaiGoldTodayPrice();
   } catch (primaryError) {
     try {
-      return await fetchClassicGoldTradersPrice();
+      return await fetchGoldTradersPrice();
     } catch (fallbackError) {
       try {
-        return await fetchThaiGoldTodayPrice();
+        return await fetchClassicGoldTradersPrice();
       } catch (secondFallbackError) {
         try {
           return await fetchThaiGoldPrice();
         } catch (lastError) {
-          const primaryMessage = primaryError instanceof Error ? primaryError.message : "สมาคมค้าทองคำล้มเหลว";
-          const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "หน้า classic ของสมาคมค้าทองคำล้มเหลว";
-          const secondFallbackMessage = secondFallbackError instanceof Error ? secondFallbackError.message : "ราคาทองคำวันนี้ล้มเหลว";
+          const primaryMessage = primaryError instanceof Error ? primaryError.message : "ราคาทองคำวันนี้ล้มเหลว";
+          const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "สมาคมค้าทองคำล้มเหลว";
+          const secondFallbackMessage = secondFallbackError instanceof Error ? secondFallbackError.message : "หน้า classic ของสมาคมค้าทองคำล้มเหลว";
           const lastMessage = lastError instanceof Error ? lastError.message : "provider สำรองล้มเหลว";
           throw new Error(`${primaryMessage}; ${fallbackMessage}; ${secondFallbackMessage}; ${lastMessage}`);
         }
