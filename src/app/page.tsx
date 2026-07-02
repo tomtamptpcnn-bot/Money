@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useRouter } from "next/navigation";
 import {
   Area,
   AreaChart,
@@ -226,6 +227,7 @@ type NotifyFn = (title: string, description?: string, tone?: ToastMessage["tone"
 const emptySummary: Summary = { totals: { walletTotal: 0, monthIncome: 0, monthExpense: 0, cashflow: 0, assetValue: 0, debtRemaining: 0, netWorth: 0 }, monthly: [], expenseCategories: [], incomeCategories: [], recent: [] };
 
 export default function HomePage() {
+  const router = useRouter();
   const [view, setView] = useState<View>("dashboard");
   const [data, setData] = useState<DataShape>(emptyData);
   const [summary, setSummary] = useState<Summary>(emptySummary);
@@ -251,6 +253,11 @@ export default function HomePage() {
     setError("");
     try {
       const res = await fetch("/api/data?summary=1");
+      if (res.status === 401) {
+        const next = `${window.location.pathname}${window.location.search}`;
+        router.replace(`/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
       if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
       const body = await res.json();
       setData(body.data);
@@ -418,7 +425,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen pb-24 lg:pb-0">
-      <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r bg-card/90 p-5 backdrop-blur lg:block">
+      <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-primary/15 bg-card/85 p-5 shadow-[8px_0_32px_rgba(236,72,153,0.08)] backdrop-blur lg:block">
         <Brand />
         <nav className="mt-8 grid gap-1">
           {nav.map((item) => (
@@ -428,7 +435,7 @@ export default function HomePage() {
       </aside>
 
       <section className="lg:ml-64">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b bg-background/85 px-4 py-3 backdrop-blur lg:px-8">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-primary/15 bg-background/85 px-4 py-3 shadow-sm backdrop-blur lg:px-8">
           <div>
             <p className="text-xs font-semibold uppercase text-muted-foreground">MoneyTomtam</p>
             <h1 className="text-xl font-bold tracking-normal lg:text-2xl">{nav.find((item) => item.id === view)?.label}</h1>
@@ -468,6 +475,7 @@ export default function HomePage() {
       ) : null}
 
       <EditorDialog editor={editor} data={data} saving={saving} onClose={() => setEditor(null)} onSave={save} />
+      <SavingOverlay show={saving && !loading} />
       <ToastNotice toast={toast} onClose={() => setToast(null)} />
     </main>
   );
@@ -476,7 +484,7 @@ export default function HomePage() {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <div className="grid h-11 w-11 place-items-center rounded-lg bg-primary text-primary-foreground">
+      <div className="grid h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-primary to-rose-400 text-primary-foreground shadow-lg shadow-primary/25">
         <PiggyBank className="h-6 w-6" />
       </div>
       <div>
@@ -489,7 +497,7 @@ function Brand() {
 
 function NavButton({ item, active, onClick }: { item: (typeof nav)[number]; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={cn("flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground", active && "bg-accent text-accent-foreground")}>
+    <button onClick={onClick} className={cn("flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground hover:shadow-sm", active && "bg-accent text-accent-foreground shadow-sm shadow-primary/10")}>
       <item.icon className="h-5 w-5" />
       {item.label}
     </button>
@@ -1857,7 +1865,54 @@ function Empty({ text }: { text: string }) {
 }
 
 function LoadingGrid() {
-  return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-lg bg-muted" />)}</div>;
+  return (
+    <div className="grid gap-5">
+      <div className="grid min-h-44 place-items-center rounded-lg border border-primary/20 bg-card/80 p-6 text-center shadow-sm backdrop-blur">
+        <div className="grid gap-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 ring-8 ring-primary/5">
+            <Sparkles className="h-8 w-8 animate-pulse text-primary" />
+          </div>
+          <div>
+            <p className="font-black text-primary">กำลังจัดกระเป๋าเงินให้น่ารักขึ้น</p>
+            <p className="mt-1 text-sm text-muted-foreground">รอสักครู่นะ กำลังโหลดข้อมูลล่าสุด</p>
+          </div>
+          <div className="mx-auto flex items-center gap-2">
+            {[0, 1, 2].map((index) => (
+              <span key={index} className="loading-dot h-2.5 w-2.5 rounded-full bg-primary" style={{ animationDelay: `${index * 140}ms` }} />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="grid h-32 gap-3 rounded-lg border border-primary/10 bg-card p-4">
+            <div className="pink-shimmer h-4 w-24 rounded-full" />
+            <div className="pink-shimmer h-8 w-32 rounded-md" />
+            <div className="pink-shimmer mt-auto h-3 w-full rounded-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SavingOverlay({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-[70] mx-auto grid w-[calc(100%-2rem)] max-w-sm place-items-center">
+      <div className="flex items-center gap-3 rounded-full border border-primary/25 bg-card/95 px-4 py-3 text-sm font-bold text-primary shadow-xl shadow-primary/15 backdrop-blur">
+        <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+          <Sparkles className="h-4 w-4 animate-pulse" />
+        </span>
+        <span>กำลังบันทึกข้อมูล...</span>
+        <span className="flex gap-1">
+          {[0, 1, 2].map((index) => (
+            <span key={index} className="loading-dot h-1.5 w-1.5 rounded-full bg-primary" style={{ animationDelay: `${index * 120}ms` }} />
+          ))}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function ToastNotice({ toast, onClose }: { toast: ToastMessage | null; onClose: () => void }) {

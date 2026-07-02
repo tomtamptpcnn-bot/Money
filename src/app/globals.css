@@ -3,44 +3,44 @@
 @tailwind utilities;
 
 :root {
-  --background: 42 45% 97%;
-  --foreground: 220 28% 18%;
+  --background: 345 100% 98%;
+  --foreground: 334 34% 20%;
   --card: 0 0% 100%;
-  --card-foreground: 220 28% 18%;
-  --primary: 166 53% 37%;
+  --card-foreground: 334 34% 20%;
+  --primary: 335 82% 58%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 351 82% 94%;
-  --secondary-foreground: 345 50% 28%;
-  --muted: 44 31% 92%;
-  --muted-foreground: 220 12% 44%;
-  --accent: 214 75% 93%;
-  --accent-foreground: 216 48% 27%;
-  --destructive: 356 71% 55%;
+  --secondary: 330 100% 94%;
+  --secondary-foreground: 334 54% 28%;
+  --muted: 338 58% 94%;
+  --muted-foreground: 334 16% 46%;
+  --accent: 326 88% 92%;
+  --accent-foreground: 334 62% 30%;
+  --destructive: 350 78% 55%;
   --destructive-foreground: 0 0% 100%;
-  --border: 38 22% 86%;
-  --input: 38 22% 86%;
-  --ring: 166 53% 37%;
+  --border: 335 43% 87%;
+  --input: 335 43% 87%;
+  --ring: 335 82% 58%;
   --radius: 0.5rem;
 }
 
 .dark {
-  --background: 222 23% 10%;
-  --foreground: 42 45% 96%;
-  --card: 222 22% 14%;
-  --card-foreground: 42 45% 96%;
-  --primary: 166 48% 47%;
-  --primary-foreground: 220 28% 13%;
-  --secondary: 338 27% 23%;
-  --secondary-foreground: 351 82% 94%;
-  --muted: 222 16% 20%;
-  --muted-foreground: 218 13% 70%;
-  --accent: 214 24% 24%;
-  --accent-foreground: 214 75% 91%;
-  --destructive: 356 71% 55%;
+  --background: 334 28% 10%;
+  --foreground: 340 80% 96%;
+  --card: 334 25% 14%;
+  --card-foreground: 340 80% 96%;
+  --primary: 334 86% 68%;
+  --primary-foreground: 334 34% 12%;
+  --secondary: 334 32% 23%;
+  --secondary-foreground: 340 80% 94%;
+  --muted: 334 20% 20%;
+  --muted-foreground: 338 22% 76%;
+  --accent: 323 34% 25%;
+  --accent-foreground: 330 92% 93%;
+  --destructive: 350 78% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 222 16% 24%;
-  --input: 222 16% 24%;
-  --ring: 166 48% 47%;
+  --border: 334 22% 27%;
+  --input: 334 22% 27%;
+  --ring: 334 86% 68%;
 }
 
 * {
@@ -50,8 +50,9 @@
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(249, 196, 203, 0.45), transparent 30rem),
-    radial-gradient(circle at bottom right, rgba(146, 212, 199, 0.35), transparent 28rem),
+    radial-gradient(circle at 12% 8%, rgba(255, 141, 179, 0.35), transparent 28rem),
+    radial-gradient(circle at 86% 18%, rgba(255, 207, 226, 0.6), transparent 24rem),
+    radial-gradient(circle at bottom right, rgba(186, 228, 217, 0.28), transparent 28rem),
     hsl(var(--background));
   color: hsl(var(--foreground));
 }
@@ -61,4 +62,34 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+@keyframes float-kiss {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateY(-10px) scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer-pink {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.pink-shimmer {
+  background: linear-gradient(90deg, hsl(var(--muted)) 0%, hsl(var(--secondary)) 35%, hsl(var(--accent)) 50%, hsl(var(--secondary)) 65%, hsl(var(--muted)) 100%);
+  background-size: 220% 100%;
+  animation: shimmer-pink 1.35s ease-in-out infinite;
+}
+
+.loading-dot {
+  animation: float-kiss 1.1s ease-in-out infinite;
 }
