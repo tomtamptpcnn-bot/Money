@@ -37,11 +37,12 @@ type GoldPriceResult = {
 };
 
 export const dynamic = "force-dynamic";
-const routeVersion = "gold-price-v3-classic-fallback";
+const routeVersion = "gold-price-v4-alt-html-fallback";
 
 const defaultThaiGoldApiUrl = "https://api.chnwt.dev/thai-gold-api/latest";
 const goldTradersDetailsUrl = "https://www.goldtraders.or.th/api/GoldPrices/Details?readjson=false";
 const classicGoldTradersUrl = "https://classic.goldtraders.or.th/Default.aspx";
+const thaiGoldTodayUrl = "https://xn--42cah7d0cxcvbbb9x.com/";
 const goldTradersHeaders = {
   Accept: "application/json,text/plain,*/*",
   Referer: "https://www.goldtraders.or.th/",
@@ -148,6 +149,30 @@ async function fetchClassicGoldTradersPrice() {
   };
 }
 
+async function fetchThaiGoldTodayPrice() {
+  const response = await fetch(thaiGoldTodayUrl, {
+    headers: {
+      Accept: "text/html,application/xhtml+xml",
+      "User-Agent": "Mozilla/5.0"
+    },
+    cache: "no-store"
+  });
+  const body = (await response.text()).replace(/\0/g, "");
+  if (!response.ok) throw new Error("ดึงราคาทองจากราคาทองคำวันนี้ไม่สำเร็จ");
+
+  const priceRow = body.match(/ทองคำแท่ง<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>/i);
+  const price = parsePrice(priceRow?.[2]);
+  if (!price) throw new Error("ไม่พบราคาทองคำแท่ง 96.5% ขายออกจากราคาทองคำวันนี้");
+
+  const dateRow = body.match(/data-column=วันที่\/เวลา>([^<]+)<\/td>\s*<td[^>]+data-column=คร้ังที่>([^<]+)<\/td>/i);
+
+  return {
+    price,
+    updatedAt: dateRow ? `${dateRow[1].trim()} (ครั้งที่ ${dateRow[2].trim()})` : new Date().toISOString(),
+    provider: "ราคาทองคำวันนี้"
+  };
+}
+
 async function fetchGoldPrice(): Promise<GoldPriceResult> {
   if (hasCustomGoldApiUrl()) return fetchThaiGoldPrice();
 
@@ -158,12 +183,17 @@ async function fetchGoldPrice(): Promise<GoldPriceResult> {
       return await fetchClassicGoldTradersPrice();
     } catch (fallbackError) {
       try {
-        return await fetchThaiGoldPrice();
-      } catch (lastError) {
-        const primaryMessage = primaryError instanceof Error ? primaryError.message : "สมาคมค้าทองคำล้มเหลว";
-        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "หน้า classic ของสมาคมค้าทองคำล้มเหลว";
-        const lastMessage = lastError instanceof Error ? lastError.message : "provider สำรองล้มเหลว";
-        throw new Error(`${primaryMessage}; ${fallbackMessage}; ${lastMessage}`);
+        return await fetchThaiGoldTodayPrice();
+      } catch (secondFallbackError) {
+        try {
+          return await fetchThaiGoldPrice();
+        } catch (lastError) {
+          const primaryMessage = primaryError instanceof Error ? primaryError.message : "สมาคมค้าทองคำล้มเหลว";
+          const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "หน้า classic ของสมาคมค้าทองคำล้มเหลว";
+          const secondFallbackMessage = secondFallbackError instanceof Error ? secondFallbackError.message : "ราคาทองคำวันนี้ล้มเหลว";
+          const lastMessage = lastError instanceof Error ? lastError.message : "provider สำรองล้มเหลว";
+          throw new Error(`${primaryMessage}; ${fallbackMessage}; ${secondFallbackMessage}; ${lastMessage}`);
+        }
       }
     }
   }
